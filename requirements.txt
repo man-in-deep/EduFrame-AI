@@ -1,0 +1,14 @@
+scikit-learn
+lightgbm
+xgboost
+transformers
+torch
+numpy
+pandas
+joblib
+streamlit
+fastapi
+uvicorn
+python-dotenv
+huggingface-hub
+sentence-transformers
