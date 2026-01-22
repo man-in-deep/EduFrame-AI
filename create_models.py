@@ -1,4 +1,4 @@
-# create_models.py - COMPLETE FILE
+# create_models.py - FIXED VERSION
 import os
 import numpy as np
 import pandas as pd
@@ -61,7 +61,7 @@ def create_nlp_designer():
     return model, tokenizer
 
 def create_success_predictor():
-    """Create success predictor using LightGBM"""
+    """Create success predictor using LightGBM - FIXED VERSION"""
     print("\n🤖 Creating Success Predictor (LightGBM)...")
     
     # Create synthetic data
@@ -78,8 +78,8 @@ def create_success_predictor():
     
     df = pd.DataFrame(data)
     
-    # Create target
-    X = df.values
+    # Create target - KEEP AS DATAFRAME, NOT .values
+    X = df  # This is important! Keep as DataFrame with column names
     y = (0.3 * df['budget_adequacy'] + 
          0.25 * df['teacher_training'] + 
          0.2 * df['stakeholder_support'] + 
@@ -87,12 +87,13 @@ def create_success_predictor():
          0.1 * df['previous_success_rate'] +
          0.05 * np.random.randn(n_samples))
     
-    # Train LightGBM model
+    # Train LightGBM model - pass DataFrame directly
     success_model = lgb.LGBMRegressor(
         n_estimators=100,
         max_depth=7,
         learning_rate=0.1,
-        random_state=42
+        random_state=42,
+        verbose=-1  # Suppress LightGBM logs
     )
     success_model.fit(X, y)
     
@@ -100,8 +101,13 @@ def create_success_predictor():
     with open('models/success_predictor.pkl', 'wb') as f:
         pickle.dump(success_model, f)
     
+    # Also save the feature names for reference
+    with open('models/feature_names.pkl', 'wb') as f:
+        pickle.dump(list(X.columns), f)
+    
     size_mb = os.path.getsize('models/success_predictor.pkl') / (1024*1024)
     print(f"✅ Success Predictor saved: {size_mb:.1f} MB")
+    print(f"   Feature names saved: {list(X.columns)}")
     
     return success_model
 
@@ -136,6 +142,24 @@ def main():
     print("   • FLN Predictor: RandomForest (instead of TensorFlow)")
     print("   • NLP Designer: DistilBERT (lightweight transformer)")
     print("   • Success Predictor: LightGBM (instead of CatBoost)")
+    
+    # Test that models work
+    print("\n🧪 Quick test of models...")
+    try:
+        # Quick test of LightGBM model
+        test_features = pd.DataFrame({
+            'budget_adequacy': [0.7],
+            'teacher_training': [0.8],
+            'stakeholder_support': [0.6],
+            'implementation_timeline': [0.9],
+            'previous_success_rate': [0.5]
+        })
+        
+        prediction = success_model.predict(test_features)[0]
+        print(f"✅ LightGBM test prediction: {prediction:.3f}")
+        
+    except Exception as e:
+        print(f"⚠️ Test failed: {str(e)}")
 
 if __name__ == "__main__":
     main()

@@ -1,9 +1,15 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 import joblib
 import pickle
 from transformers import DistilBertTokenizer, DistilBertModel
 import torch
+import warnings
+import os
+
+# Suppress warnings
+warnings.filterwarnings("ignore")
 
 st.set_page_config(page_title="EduFrame AI Model Tester", layout="wide")
 
@@ -14,11 +20,13 @@ st.markdown("**Alternative Models:** RandomForest + DistilBERT + LightGBM")
 if 'models_loaded' not in st.session_state:
     st.session_state.models_loaded = False
     st.session_state.models = {}
+    st.session_state.feature_names = []
 
 @st.cache_resource
 def load_models():
     """Load all models (cached)"""
     models = {}
+    feature_names = []
     
     try:
         # Load FLN model
@@ -34,10 +42,25 @@ def load_models():
         with open('models/success_predictor.pkl', 'rb') as f:
             models['success'] = pickle.load(f)
         
-        return models
+        # Load feature names
+        feature_file = 'models/feature_names.pkl'
+        if os.path.exists(feature_file):
+            with open(feature_file, 'rb') as f:
+                feature_names = pickle.load(f)
+        else:
+            # Default feature names
+            feature_names = [
+                'budget_adequacy',
+                'teacher_training',
+                'stakeholder_support',
+                'implementation_timeline',
+                'previous_success_rate'
+            ]
+        
+        return models, feature_names
     except Exception as e:
         st.error(f"Error loading models: {str(e)}")
-        return None
+        return None, None
 
 # Sidebar
 with st.sidebar:
@@ -45,8 +68,10 @@ with st.sidebar:
     
     if st.button("🔄 Load Models", type="primary"):
         with st.spinner("Loading models..."):
-            st.session_state.models = load_models()
-            if st.session_state.models:
+            models, feature_names = load_models()
+            if models:
+                st.session_state.models = models
+                st.session_state.feature_names = feature_names
                 st.session_state.models_loaded = True
                 st.success("Models loaded successfully!")
     
@@ -164,7 +189,7 @@ with tab2:
 
 with tab3:
     st.header("Success Probability Predictor")
-    st.markdown("Predicts overall program success")
+    st.markdown("Predicts overall program success - FIXED VERSION")
     
     if st.session_state.models_loaded:
         col1, col2 = st.columns(2)
@@ -177,12 +202,24 @@ with tab3:
             stakeholder = st.slider("Stakeholder Support (%)", 0, 100, 65) / 100
             timeline = st.slider("Implementation Timeline (%)", 0, 100, 75) / 100
         
+        # Use default for previous_success_rate
+        previous_success = 0.5
+        
         if st.button("Predict Success", type="primary"):
-            # Prepare features
-            features = np.array([[budget, teacher_training, stakeholder, timeline, 0.5]])
+            # Prepare features as DataFrame with correct column names
+            features_dict = {
+                'budget_adequacy': budget,
+                'teacher_training': teacher_training,
+                'stakeholder_support': stakeholder,
+                'implementation_timeline': timeline,
+                'previous_success_rate': previous_success
+            }
             
-            # Predict
-            success_prob = st.session_state.models['success'].predict(features)[0]
+            # Convert to DataFrame with correct column order
+            features_df = pd.DataFrame([features_dict])[st.session_state.feature_names]
+            
+            # Predict (no warning!)
+            success_prob = st.session_state.models['success'].predict(features_df)[0]
             success_prob = max(0, min(1, success_prob))
             
             # Display
@@ -200,6 +237,11 @@ with tab3:
                 st.info("⚡ MODERATE SUCCESS - Good potential, monitor closely")
             else:
                 st.warning("🔧 NEEDS IMPROVEMENT - Revise program design")
+            
+            # Show the DataFrame that was used (for debugging)
+            with st.expander("📊 See prediction details"):
+                st.write("Features used for prediction:")
+                st.dataframe(features_df)
 
 # Footer
 st.divider()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for EduFrame AI lightweight models
+Test script for EduFrame AI lightweight models - FIXED VERSION
 """
 
 import os
@@ -12,6 +12,12 @@ import pickle
 from pathlib import Path
 from transformers import DistilBertModel, DistilBertTokenizer
 import torch
+import warnings
+
+# Suppress the specific LightGBM warning
+warnings.filterwarnings("ignore", 
+    message="X does not have valid feature names", 
+    category=UserWarning)
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -23,6 +29,7 @@ class ModelTester:
         self.nlp_tokenizer = None
         self.nlp_model = None
         self.success_model = None
+        self.feature_names = None  # Store feature names for LightGBM
     
     def load_models(self):
         """Load all models into memory"""
@@ -45,6 +52,23 @@ class ModelTester:
             with open('models/success_predictor.pkl', 'rb') as f:
                 self.success_model = pickle.load(f)
             print("✅ Success predictor loaded")
+            
+            # Load feature names if available
+            feature_file = 'models/feature_names.pkl'
+            if os.path.exists(feature_file):
+                with open(feature_file, 'rb') as f:
+                    self.feature_names = pickle.load(f)
+                print(f"✅ Feature names loaded: {self.feature_names}")
+            else:
+                # Default feature names
+                self.feature_names = [
+                    'budget_adequacy',
+                    'teacher_training',
+                    'stakeholder_support',
+                    'implementation_timeline',
+                    'previous_success_rate'
+                ]
+                print(f"⚠️ Using default feature names: {self.feature_names}")
             
             self.models_loaded = True
             return True
@@ -135,7 +159,7 @@ class ModelTester:
             }
     
     def test_success_predictor(self, program_features=None):
-        """Test success predictor"""
+        """Test success predictor - FIXED VERSION"""
         print("\n🧪 Testing Success Predictor...")
         
         if not self.models_loaded:
@@ -152,12 +176,12 @@ class ModelTester:
                 'previous_success_rate': np.random.uniform(0.0, 1.0)
             }
         
-        # Convert to array for prediction
-        features_array = np.array([list(program_features.values())])
+        # Convert to DataFrame with correct column names and order
+        features_df = pd.DataFrame([program_features])[self.feature_names]
         
-        # Make prediction
-        success_prob = self.success_model.predict(features_array)[0]
-        success_prob = max(0, min(1, success_prob))  # Clip to 0-1
+        # Make prediction (no warning now!)
+        success_prob = self.success_model.predict(features_df)[0]
+        success_prob = max(0, min(1, success_prob))
         
         print("📊 Program Features:")
         for key, value in program_features.items():
